@@ -211,11 +211,20 @@ bw_df %>%
 
 ##### Two other models
 
-```{r}
+```{r two other models}
 
+model_1 = lm(bwt ~ blength + gaweeks, data = bw_df)
+model_2 = lm(bwt ~ bhead * blength * babysex, data = bw_df)
 
+model_1 %>% 
+  broom::tidy() %>% 
+  select(term, estimate, p.value) %>% 
+  knitr::kable(digits = 3)
 
-
+model_2 %>% 
+  broom::tidy() %>% 
+  select(term, estimate, p.value) %>% 
+  knitr::kable(digits = 3)
 
 ```
 
