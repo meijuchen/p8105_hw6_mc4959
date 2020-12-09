@@ -232,7 +232,7 @@ model_2 %>%
 
 ##### Cross Validation & Violin Plot of RMSEs
 
-```{r cross validation & violin plot}
+```{r cross validation & violin plot, warning = FALSE}
 
 # cross validation
 cv_df =
@@ -274,7 +274,7 @@ cv_df %>%
   ggplot(aes(x = model, y = rmse)) +
   geom_violin() +
   labs(
-    title = "Cross Validation - Violin Plot",
+    title = "Cross Validation Violin Plot",
     x = "Models",
     y = "RMSE"
   )
@@ -293,4 +293,125 @@ From the plot, we can see that the `fit_select` model has the lowest squared roo
 
 ***
 
+### Problem 3
 
+##### Load and clean the data.
+
+```{r read problem 3 data, warning = FALSE}
+
+weather_df = 
+  rnoaa::meteo_pull_monitors(
+    c("USW00094728"),
+    var = c("PRCP", "TMIN", "TMAX"), 
+    date_min = "2017-01-01",
+    date_max = "2017-12-31") %>%
+  mutate(
+    name = recode(id, USW00094728 = "CentralPark_NY"),
+    tmin = tmin / 10,
+    tmax = tmax / 10) %>%
+  select(name, id, everything())
+
+```
+
+<br>
+
+##### Bootstraps
+
+```{r bootstrap sampling}
+
+set.seed(1234)
+
+boot_samp = function(df) {
+  sample_frac(df, replace = TRUE)
+}
+
+```
+
+```{r boostrapping, warning = FALSE}
+
+boot_df = 
+  data_frame(
+    strap_number = 1:5000,
+    strap_sample = rerun(5000, boot_samp(weather_df))
+  )
+
+boot_results = 
+  boot_df %>% 
+  mutate(
+    models = map(.x = strap_sample, ~lm(tmax ~ tmin, data = .x)), 
+    results = map(models, broom::glance)
+  ) %>%
+  select(strap_number, results) %>% 
+  unnest(results)
+
+```
+
+<br>
+
+##### Distribution of R-Squared (r̂^ 2)
+
+```{r r-squared, warning = FALSE}
+rsqu_p = 
+  boot_results %>%
+  ggplot(aes(x = adj.r.squared)) +
+  geom_density(fill = '#85C1E9', aplpha = 0.6) +
+  labs(
+      title = "Distribution of R-Squared",
+      x = "R-Squared"
+    )
+
+rsqu_p
+```
+
+From the plot above, it seems that the distribution of R-squared follows normal distribution, centered around 0.91. Thus, we can say that the model is a good estimate of the response variable.
+
+The 95% CI for the adjusted R-squared is (`r quantile(boot_results$adj.r.squared, probs=0.025)`, `r quantile(boot_results$adj.r.squared, probs=0.975)`).
+
+<br>
+
+##### Log (β̂ 0∗β̂ 1)
+
+```{r 2nd bootstrap for log, warning = FALSE}
+
+boot_2_df = 
+  weather_df %>% 
+  bootstrap(5000, id = "strap_number") %>% 
+  mutate(
+    models = map(.x = strap, ~lm(tmax ~ tmin, data = .x)), 
+    results = map(models, broom::tidy)
+  ) %>% 
+  select(strap_number, results) %>% 
+  unnest(results) %>% 
+  select(term, estimate) %>%
+  pivot_wider(
+    names_from = term,
+    values_from = estimate
+  ) %>% 
+  unnest(cols = c(`(Intercept)`, tmin)) %>%
+  rename(
+    beta_0 = '(Intercept)',
+    beta_1 = tmin
+  ) %>% 
+ mutate(
+    log_fx = log(beta_0*beta_1)
+  )
+
+```
+
+```{r log plot, warning = FALSE}
+
+log_p = 
+  boot_2_df %>%
+  ggplot(aes(x = log_fx)) +
+  geom_density(fill = '#F7DC6F', alpha = 0.6) +
+  labs(
+      title = 'Distribution of Log Function',
+      x = 'Log (beta_0 * beta_1)'
+    )
+
+log_p
+```
+
+From the plot above, we can see that the estimated log function (beta_0 * beta_1) plot also follows normal distribution, centered around 2.025.
+
+The 95% CI for log (beta_0 * beta_1) is (`r quantile(boot_2_df$log_fx, probs=0.025)`, `r quantile(boot_2_df$log_fx, probs=0.975)`).
