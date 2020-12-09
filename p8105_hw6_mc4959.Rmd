@@ -228,3 +228,69 @@ model_2 %>%
 
 ```
 
+<br>
+
+##### Cross Validation & Violin Plot of RMSEs
+
+```{r cross validation & violin plot}
+
+# cross validation
+cv_df =
+  crossv_mc(bw_df, 200)
+
+cv_df = 
+  cv_df %>% 
+  mutate(
+    train = map(train, as_tibble),
+    test = map(test, as_tibble)
+  )
+
+# fit the models and get violin plot of RMSEs
+cv_df = 
+  cv_df %>% 
+  mutate(
+    fit_select = map(
+      .x = train, ~lm(bwt ~ babysex + bhead + blength + delwt + fincome + gaweeks + mheight + mrace + parity + ppwt + smoken, data = .x)),
+    fit_1 = map(
+      .x = train, ~lm(bwt ~ blength + gaweeks, data = .x)),
+    fit_2 = map(
+      .x = train, ~lm(bwt ~ bhead * blength * babysex, data = .x)
+    )
+  ) %>% 
+  mutate(
+    rmse_fit_select = map2_dbl(.x = fit_select, .y = test, ~rmse(model = .x, data = .y)),
+    rmse_fit_1 = map2_dbl(.x = fit_1, .y = test, ~rmse(model = .x, data = .y)),
+    rmse_fit_2 = map2_dbl(.x = fit_2, .y = test, ~rmse(model = .x, data = .y))
+  )
+
+cv_df %>% 
+  select(starts_with("rmse")) %>% 
+  pivot_longer(
+    everything(),
+    names_to = "model",
+    values_to = "rmse",
+    names_prefix = "rmse_"
+  ) %>% 
+  ggplot(aes(x = model, y = rmse)) +
+  geom_violin() +
+  labs(
+    title = "Cross Validation - Violin Plot",
+    x = "Models",
+    y = "RMSE"
+  )
+
+```
+
+Above is the cross validation violin plots for three models:
+
+* The `fit_select` model is created from stepwise elimination. 
+
+* The `fit_2` model includes the interactions between head circumference, length, and sex.
+
+* The `fit_1` model uses birth length, gestational age as predictors.
+
+From the plot, we can see that the `fit_select` model has the lowest squared root of residuals variance so the predicted values are the closest to the observed values. In addition, the `fit_1` model has the highest RMSE value, while the `fit_2` model has the second to the lowest RMSE value.
+
+***
+
+
